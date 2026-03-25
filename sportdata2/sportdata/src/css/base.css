@@ -1,0 +1,43 @@
+/* VARIABLES */
+:root {
+    --text: #6b6375;
+
+    --sans: "Be Vietnam Pro", Roboto, sans-serif;
+    --heading: "Be Vietnam Pro", Roboto, sans-serif;
+
+    --main-background: #eaeff4;
+    --bg-color: #eff0f4;
+    --border-color: lightgray;
+
+    --color-blue: #50aaf2;
+    --color-success: #68cd85;
+    --color-secondary-blue: #2d80e1;
+    --color-secondary-purple: #b680ef;
+}
+
+/* RESET */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-family: var(--sans);
+    font-size: 18px;
+    line-height: 1.45;
+
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    margin: 0;
+    background: var(--main-background);
+    color: #333;
+}
+
+/* TYPOGRAPHY */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--heading);
+    font-weight: 600;
+}
