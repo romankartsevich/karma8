@@ -1,13 +1,16 @@
+import VideoItem from './video-item.js';
+
 class VideoController {
-  videoViewport;
-  observer;
-  currentVideo;
-  videoDispenser;
   template;
+  videoViewport;
+  videoDispenser;
+  videoItems = [];
+  currentVideoIndex = 0;
+
   updateNextListCallback;
   updatePrevListCallback;
 
-  videoItems = [];
+  bufferSize = 20;
 
   constructor(videoViewport, videoDispenser, template) {
     this.videoViewport = videoViewport;
@@ -22,59 +25,51 @@ class VideoController {
   }
 
   initState() {
-    this.addSetItems();
-    this.currentVideo = this.videoViewport.children[0];
-    this.preloadVideo(this.videoDispenser.get(0), this.currentVideo);
-    this.preloadVideo(this.videoDispenser.get(1), this.currentVideo.nextElementSibling);
+    this.maintainVideos(true, this.videoDispenser.videos);
+    this.videoItems[0].preload();
+    this.videoItems[1].preload();
   }
 
-  clearVideo = (c) => c?.querySelector('video')?.remove();
-
   updateState(forward = true)  {
-    const siblingElements = [
-      this.currentVideo.previousElementSibling?.previousElementSibling,
-      this.currentVideo.previousElementSibling,
-      this.currentVideo,
-      this.currentVideo.nextElementSibling,
-      this.currentVideo.nextElementSibling?.nextElementSibling
+    const siblingVideoItems = [
+      this.videoItems[this.currentVideoIndex - 2],
+      this.videoItems[this.currentVideoIndex - 1],
+      this.videoItems[this.currentVideoIndex],
+      this.videoItems[this.currentVideoIndex + 1],
+      this.videoItems[this.currentVideoIndex + 2],
     ];
 
     if (!forward) {
-      siblingElements.reverse();
+      siblingVideoItems.reverse();
     }
 
-    if (siblingElements[0]) {
-      this.clearVideo(siblingElements[0]);
-    }
-
-    if (siblingElements[1]) {
-      this.pauseVideo(siblingElements[1]);
-    }
-
-    this.playVideo(siblingElements[2]);
-
-    if (siblingElements[3]) {
-      this.preloadVideo(this.videoDispenser.shift(forward), siblingElements[3]);
-    }
+    siblingVideoItems[0]?.clear();
+    siblingVideoItems[1]?.stop();
+    siblingVideoItems[2]?.play();
+    siblingVideoItems[3]?.preload();
   }
 
-  addSetItems(forward = true, amount = 15) {
+  maintainVideos(forward = true, videos) {
     const fragment = document.createDocumentFragment();
+    const newVideoItems = [];
 
-    for (let i = 0; i < amount; i++) {
-      fragment.appendChild(this.getTemplateInstance('url' + i));
-    }
+    videos.forEach((video) => {
+      const videoTemplate = this.getVideoContainer(video.name);
+
+      newVideoItems.push(new VideoItem(video, videoTemplate.firstElementChild));
+      fragment.appendChild(videoTemplate);
+    });
 
     if (forward) {
       this.videoViewport.appendChild(fragment);
+      this.videoItems.push(...newVideoItems);
     } else {
       this.videoViewport.insertBefore(fragment, this.videoViewport.firstChild);
+      this.videoItems = [...newVideoItems, ...this.videoItems];
     }
-
-    // this.cutScrollableArea();
   }
 
-  getTemplateInstance(name) {
+  getVideoContainer(name) {
     const clone = this.template.content.cloneNode(true);
 
     clone.firstElementChild.setAttribute('name', name);
@@ -82,42 +77,19 @@ class VideoController {
     return clone;
   }
 
-  pauseVideo = c => {
-    const videoElement = c.querySelector('video');
-
-    videoElement.pause();
-    videoElement.currentTime = 0;
-  };
-
-  playVideo = c => {
-    c.querySelector('video').play().catch(() => console.error("NEED INTERACT"));
-  }
-  preloadVideo = (video, c) => {
-    const videoElement = document.createElement("video");
-
-    videoElement.src = video.url;
-    c.appendChild(videoElement);
-  }
-
   updateScrollableArea(forward) {
     const triggerBufferSize = 5;
-    const children =  Array.from(this.videoViewport.children);
-    const currentIndex = children.indexOf(this.currentVideo);
 
     if (forward) {
-      if (children.length - currentIndex < triggerBufferSize) {
-        this.loadNextPool(currentIndex);
+      if (this.videoItems.length - this.currentVideoIndex < triggerBufferSize) {
+        this.loadNextPool(this.currentVideoIndex);
       }
-    } else if (currentIndex < triggerBufferSize) {
-      this.loadPrevPool(currentIndex);
+    } else if (this.currentVideoIndex < triggerBufferSize) {
+      this.loadPrevPool(this.currentVideoIndex);
     }
-  }
 
-  updateObservable = ({ nextElementSibling, previousElementSibling }, forward) => {
-    this.observer.unobserve(this.currentVideo);
-    this.currentVideo = forward ? nextElementSibling : previousElementSibling;
-    this.observer.observe(this.currentVideo);
-  };
+    // this.optimize();
+  }
 
   initObservable() {
     const options = {
@@ -126,61 +98,93 @@ class VideoController {
       scrollMargin: '0px',
       threshold: 0.5,
     };
-
-    this.observer = new IntersectionObserver((arg) => {
+    let observable = this.videoViewport.children[0];
+    const observer = new IntersectionObserver((arg) => {
       const e = arg.find((a) => !a.isIntersecting);
       const target = e?.target;
 
-      if (target === this.currentVideo) {
+      if (target === observable) {
         const forward = e.rootBounds.top > e.boundingClientRect.top;
+        const currentVideoItem = this.videoItems[this.currentVideoIndex];
+        const nextVideoItem = this.videoItems[forward ? ++this.currentVideoIndex : --this.currentVideoIndex];
+
+        observable = nextVideoItem.videoContainer;
+        observer.observe(observable);
+        observer.unobserve(currentVideoItem.videoContainer);
 
         this.updateScrollableArea(forward);
-        this.updateObservable(target, forward);
         this.updateState(forward);
       }
     }, options);
-    this.observer.observe(this.currentVideo);
+
+    observer.observe(observable);
   }
 
   loadPrevPool() {
     // const prevScrollBottom = this.videoViewport.scrollTop;
+    // const buffer = 20;
+    // const to =
 
-    this.addSetItems(false);
+    // this.maintainVideos(false);
     // this.videoViewport.scrollTop = prevScrollTop;
-    this.updatePrevListCallback = null;
+    // this.updatePrevListCallback = null;
   }
 
-  loadNextPool(currentIndex) {
+  loadNextPool() {
+    const from = this.videoItems.length;
+    const to = from + this.bufferSize;
+
     this.updateNextListCallback = this.updateNextListCallback ?? this.videoDispenser
-      .fetch(currentIndex, currentIndex + 20)
-      .then(() => {
+      .fetch(from, to)
+      .then(videos => {
         const prevScrollTop = this.videoViewport.scrollTop;
 
-        this.addSetItems(true, 20);
-        this.preloadVideo(this.videoDispenser.get(currentIndex), this.currentVideo.nextElementSibling);
+        this.maintainVideos(true, videos);
+        this.videoItems[this.currentVideoIndex + 1].preload();
 
         this.videoViewport.scrollTop = prevScrollTop;
         this.updateNextListCallback = null;
       });
   }
 
-  cutScrollableArea() {
-    console.log('CUT');
-    const childrenArray = Array.from(this.videoViewport.children);
-    const currentIndex = childrenArray.indexOf(this.currentVideo);
-    const bufferSize = 20;
-    const documentFragment = document.createDocumentFragment();
+  optimize() {
+    let documentFragment = document.createDocumentFragment();
 
-    // cut forward
-    if (childrenArray.length - currentIndex > bufferSize) {
-      documentFragment.replaceChildren(...childrenArray.slice(currentIndex + bufferSize));
-    }
-    // cut backward
-    if (currentIndex > bufferSize) {
-      documentFragment.replaceChildren(...childrenArray.slice(0, currentIndex - bufferSize));
+    const trimmedList = this.trimDestroyedVideoItems();
+    const currentVideoIndex = this.currentVideoIndex - trimmedList.topDestroyedList.length;
+
+    if (currentVideoIndex  > 20) {
+      const topVideoItemsList = trimmedList.maintainedList.slice(0, this.bufferSize);
+      const containers = topVideoItemsList.reduce((acc, videoItem) => [...acc, videoItem.destroy()], []);
+
+      documentFragment.replaceChildren(...containers);
+
     }
 
-    // check memory leak for documentFragment;
+    // if (bottomVideoItemIndex - this.currentVideoIndex > 20) {
+    //   const topVideoItemsList = this.videoItems.slice(bottomVideoItemIndex - this.bufferSize, bottomVideoItemIndex);
+    //   const containers = topVideoItemsList.reduce((acc, videoItem) => [...acc, videoItem.destroy()], []);
+    //
+    //   documentFragment.replaceChildren(...containers);
+    // }
+
+    documentFragment = null;
+  }
+
+  trimDestroyedVideoItems() {
+    return this.videoItems.reduce((acc, videoItem) => {
+      if (videoItem.destroyed) {
+         if (acc.maintainedList.length > 0) {
+           acc.topDestroyedList.push(videoItem);
+         } else {
+           acc.bottomDestroyedList.push(videoItem);
+         }
+      } else {
+        acc.maintainedList.push(videoItem);
+      }
+
+      return acc;
+    }, { topDestroyedList: [], bottomDestroyedList: [], maintainedList: []  });
   }
 }
 
