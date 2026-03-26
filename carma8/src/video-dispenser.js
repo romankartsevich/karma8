@@ -25,8 +25,8 @@ function mockFetch(from , to) {
 class VideoDispenser {
   videos = [];
 
-  async init() {
-    await this.getVideosFromTo(0, 20);
+  async init(size) {
+    await this.getVideosFromTo(0, size);
   }
 
   fetch(from, to) {

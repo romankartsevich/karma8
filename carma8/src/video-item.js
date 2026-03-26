@@ -4,8 +4,7 @@ class VideoItem {
   videoElement;
   videoContainer;
 
-  cleared = false;
-  destroyed = false;
+  current = false;
 
   constructor(video, videoContainer) {
     this.video = video;
@@ -19,15 +18,18 @@ class VideoItem {
   }
 
   preload() {
+    console.error('preload', this.video.name);
     this.videoElement = document.createElement('video');
     this.videoElement.loop = true;
     this.videoElement.src = this.video.url;
     this.videoElement.setAttribute('preload', 'auto');
     this.videoContainer.appendChild(this.videoElement);
-    this.cleared = false;
   }
 
   play() {
+    this.current = true;
+    console.error('play', this.video.name);
+
     this.videoElement.play()
       .then(() => {
         this.videoContainer.classList.add('play');
@@ -44,6 +46,8 @@ class VideoItem {
 
   stop() {
     this.pause();
+    this.current = false;
+    console.error('stop', this.video.name);
     this.videoContainer.classList.remove('need-manual-play');
     this.videoElement.setAttribute('preload', 'none');
     this.videoElement.currentTime = 0;
@@ -52,10 +56,13 @@ class VideoItem {
   clear() {
     this.videoElement.remove();
     this.videoElement = null;
-    this.cleared = true;
+    this.current = false;
+    console.error('clear', this.video.name);
   }
 
   togglePlayPause() {
+    this.current = true;
+
     if (this.videoElement.paused) {
       this.play();
     } else {
@@ -72,7 +79,8 @@ class VideoItem {
 
     this.videoElement = null;
     this.videoContainer = null;
-    this.destroyed = true;
+    this.current = false;
+    console.error('destroy', this.video.name);
 
     return container;
   }
