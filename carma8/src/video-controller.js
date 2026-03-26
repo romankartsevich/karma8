@@ -1,32 +1,49 @@
 import VideoItem from './video-item.js';
 
+const VIDEO_CONTROLLER_CONFIG = {
+  bufferSize: 20,
+  garbageCollector: { triggerSize: 30, removeSize: 20 }
+}
+
 class VideoController {
+
+  observer;
   template;
   videoViewport;
   videoDispenser;
   videoItems = [];
   currentVideoIndex = 0;
 
-  updateNextListCallback;
-  updatePrevListCallback;
+  upStreamScheduler;
+  downStreamScheduler;
+  optimizationScheduled = false;
 
   bufferSize = 20;
+  garbageCollector = { triggerSize: 30, removeSize: 20 };
 
-  constructor(videoViewport, videoDispenser, template) {
+  constructor(videoViewport, videoDispenser, template, config) {
     this.videoViewport = videoViewport;
     this.videoDispenser = videoDispenser;
     this.template = template;
+
+    if (config) {
+      this.bufferSize = config.bufferSize;
+      this.garbageCollector = config.garbageCollector;
+    }
   }
 
   async init() {
     await this.videoDispenser.init();
     this.initState();
     this.initObservable();
+    this.initPlayPauseListener();
+    this.initUpDownButtonsListener();
   }
 
   initState() {
     this.maintainVideos(true, this.videoDispenser.videos);
     this.videoItems[0].preload();
+    this.videoItems[0].play();
     this.videoItems[1].preload();
   }
 
@@ -84,22 +101,15 @@ class VideoController {
       if (this.videoItems.length - this.currentVideoIndex < triggerBufferSize) {
         this.loadNextPool(this.currentVideoIndex);
       }
-    } else if (this.currentVideoIndex < triggerBufferSize) {
+    } else if (this.videoItems[0].video.index > 0 && this.currentVideoIndex < triggerBufferSize) {
       this.loadPrevPool(this.currentVideoIndex);
     }
 
-    // this.optimize();
+    this.optimize();
   }
 
   initObservable() {
-    const options = {
-      root: this.videoViewport,
-      rootMargin: '0px',
-      scrollMargin: '0px',
-      threshold: 0.5,
-    };
-    let observable = this.videoViewport.children[0];
-    const observer = new IntersectionObserver((arg) => {
+    const observerCallback = (arg) => {
       const e = arg.find((a) => !a.isIntersecting);
       const target = e?.target;
 
@@ -109,82 +119,126 @@ class VideoController {
         const nextVideoItem = this.videoItems[forward ? ++this.currentVideoIndex : --this.currentVideoIndex];
 
         observable = nextVideoItem.videoContainer;
-        observer.observe(observable);
-        observer.unobserve(currentVideoItem.videoContainer);
+        this.observer.observe(observable);
+        this.observer.unobserve(currentVideoItem.videoContainer);
 
         this.updateScrollableArea(forward);
         this.updateState(forward);
       }
-    }, options);
+    };
+    const options =  {
+      root: this.videoViewport,
+      rootMargin: '0px',
+      scrollMargin: '0px',
+      threshold: 0.5,
+    };
+    let observable = this.videoViewport.children[0];
 
-    observer.observe(observable);
+    this.observer = new IntersectionObserver(observerCallback, options);
+    this.observer.observe(observable);
   }
 
   loadPrevPool() {
-    // const prevScrollBottom = this.videoViewport.scrollTop;
-    // const buffer = 20;
-    // const to =
+    const to = Math.max(0, this.videoItems.at(0).video.index - 1);
+    const from = Math.max(0, to - this.bufferSize);
 
-    // this.maintainVideos(false);
-    // this.videoViewport.scrollTop = prevScrollTop;
-    // this.updatePrevListCallback = null;
-  }
-
-  loadNextPool() {
-    const from = this.videoItems.length;
-    const to = from + this.bufferSize;
-
-    this.updateNextListCallback = this.updateNextListCallback ?? this.videoDispenser
+    this.upStreamScheduler = this.upStreamScheduler ?? this.videoDispenser
       .fetch(from, to)
       .then(videos => {
-        const prevScrollTop = this.videoViewport.scrollTop;
+        this.maintainVideos(false, videos);
+        this.currentVideoIndex += to - from;
 
-        this.maintainVideos(true, videos);
-        this.videoItems[this.currentVideoIndex + 1].preload();
+        if (this.videoItems[this.currentVideoIndex].video.index === (to + 1)) {
+          this.videoItems[this.currentVideoIndex - 1].preload();
+        }
 
-        this.videoViewport.scrollTop = prevScrollTop;
-        this.updateNextListCallback = null;
+        this.upStreamScheduler = null;
       });
   }
 
-  optimize() {
-    let documentFragment = document.createDocumentFragment();
+  loadNextPool() {
+    const from = this.videoItems.at(-1).video.index + 1;
+    const to = from + this.bufferSize;
 
-    const trimmedList = this.trimDestroyedVideoItems();
-    const currentVideoIndex = this.currentVideoIndex - trimmedList.topDestroyedList.length;
+    if (!this.downStreamScheduler) {
+      this.showLoader();
+      this.downStreamScheduler = this.videoDispenser.fetch(from, to)
+        .then((videos) => {
+          this.maintainVideos(true, videos);
 
-    if (currentVideoIndex  > 20) {
-      const topVideoItemsList = trimmedList.maintainedList.slice(0, this.bufferSize);
-      const containers = topVideoItemsList.reduce((acc, videoItem) => [...acc, videoItem.destroy()], []);
+          if (this.videoItems[this.currentVideoIndex].video.index === from - 1) {
+            this.videoItems[this.currentVideoIndex + 1].preload();
+          }
 
-      documentFragment.replaceChildren(...containers);
-
+          this.hideLoader();
+          this.downStreamScheduler = null;
+        });
     }
-
-    // if (bottomVideoItemIndex - this.currentVideoIndex > 20) {
-    //   const topVideoItemsList = this.videoItems.slice(bottomVideoItemIndex - this.bufferSize, bottomVideoItemIndex);
-    //   const containers = topVideoItemsList.reduce((acc, videoItem) => [...acc, videoItem.destroy()], []);
-    //
-    //   documentFragment.replaceChildren(...containers);
-    // }
-
-    documentFragment = null;
   }
 
-  trimDestroyedVideoItems() {
-    return this.videoItems.reduce((acc, videoItem) => {
-      if (videoItem.destroyed) {
-         if (acc.maintainedList.length > 0) {
-           acc.topDestroyedList.push(videoItem);
-         } else {
-           acc.bottomDestroyedList.push(videoItem);
-         }
-      } else {
-        acc.maintainedList.push(videoItem);
-      }
+  optimize() {
+    if (this.optimizationScheduled) {
+      return;
+    }
 
-      return acc;
-    }, { topDestroyedList: [], bottomDestroyedList: [], maintainedList: []  });
+    let containers  = null;
+    let callbackUpdate = null;
+
+    if (this.currentVideoIndex  > this.garbageCollector.triggerSize) {  // check when slide down
+      const videoItemsForRemove = this.videoItems.slice(0, this.garbageCollector.removeSize);
+
+      containers = videoItemsForRemove.reduce((acc, videoItem) => [...acc, videoItem.destroy()], []);
+      callbackUpdate = () => {
+        this.videoItems = this.videoItems.slice(this.garbageCollector.removeSize);
+        this.currentVideoIndex -= this.garbageCollector.removeSize;
+      };
+    } else if (this.videoItems.length - this.currentVideoIndex > this.garbageCollector.triggerSize) { // check when slide up
+      const videoItemsForRemove = this.videoItems.slice(this.videoItems.length - this.garbageCollector.removeSize);
+
+      containers = videoItemsForRemove.reduce((acc, videoItem) => [...acc, videoItem.destroy()], []);
+      callbackUpdate = () => this.videoItems = this.videoItems.slice(0, this.garbageCollector.removeSize);
+    }
+
+    if (containers) {
+      this.scheduleOptimization(containers, callbackUpdate);
+    }
+  }
+
+  scheduleOptimization(containers, callbackUpdate) {
+    this.optimizationScheduled = true;
+    this.videoViewport.addEventListener("scrollend", () => {
+      let documentFragment = document.createDocumentFragment();
+
+      callbackUpdate?.();
+      documentFragment.replaceChildren(...containers);
+      this.observer.takeRecords();
+      this.optimizationScheduled = false;
+    }, { once: true} );
+  }
+
+  initPlayPauseListener() {
+    this.videoViewport.addEventListener("click", () => this.videoItems[this.currentVideoIndex]?.togglePlayPause());
+  }
+
+  initUpDownButtonsListener() {
+    document.querySelector(".controls").addEventListener("click", ({ target }) => {
+      if (target.classList.contains("control-up")) {
+        this.videoItems[this.currentVideoIndex - 1]?.scrollToItem();
+      } else if (target.classList.contains("control-down")) {
+        this.videoItems[this.currentVideoIndex + 1]?.scrollToItem();
+      }
+    });
+  }
+
+  showLoader() {
+    const loaderTemplate = document.querySelector('#loader');
+    const loader = loaderTemplate.content.cloneNode(true).firstElementChild;
+
+    this.videoViewport.appendChild(loader);
+  }
+
+  hideLoader() {
+    this.videoViewport.querySelector(".loader-container").remove();
   }
 }
 

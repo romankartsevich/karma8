@@ -1,24 +1,28 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/webstorm-icon-logo.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WS playground</title>
-  <link rel="stylesheet" href="/style.css">
+    <meta charset="UTF-8"/>
+    <link rel="icon" type="image/svg+xml" href="/assets/icons/javascript.svg"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Karma8</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<!--<header class="logo">-->
-<!--Header-->
-<!--</header>-->
+
 <main id="app">
-  <section class="video-viewport">
-  </section>
-  <template id="videoContainerTemplate"><div class="video-container"></div></template>
+    <section class="video-viewport"></section>
+    <div class="controls">
+        <div class="control-up"></div>
+        <div class="control-down"></div>
+    </div>
+    <template id="loader"><div class="loader-container"><div class="loader"></div></div></template>
+    <template id="videoContainerTemplate">
+        <div class="video-container">
+            <span class="video-title"></span>
+        </div>
+    </template>
 </main>
-<!--<footer class="technologies">-->
-<!--  <img src="/technologies.svg" alt="List of supported technologies">-->
-<!--</footer>-->
+
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
