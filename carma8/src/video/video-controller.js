@@ -1,17 +1,11 @@
 import VideoItem from './video-item.js';
-import LoaderController from './loader-controller.js';
-import Scheduler from './scheduler.js';
-import PlayList from './play-list.js';
-
-const VIDEO_CONTROLLER_CONFIG = {
-  bufferSize: 20,
-  triggerSize: 5,
-  garbageCollector: { triggerSize: 30, removeSize: 20 }
-}
+import LoaderController from '../loader/loader-controller.js';
+import Scheduler from '../utils/scheduler.js';
+import PlayList from '../play-list/play-list.js';
+import PlayListControls from '../play-list/play-list-controls.js';
 
 class VideoController {
 
-  observer;
   template;
   videoViewport;
   videoDispenser;
@@ -19,6 +13,7 @@ class VideoController {
   loaderController;
   scheduler;
   playList;
+  playListControls;
 
   upStreamScheduler;
   downStreamScheduler;
@@ -35,6 +30,7 @@ class VideoController {
     this.loaderController = new LoaderController(videoViewport, 'loader');
     this.template = template;
     this.playList = new PlayList([]);
+    this.playListControls = new PlayListControls(videoViewport, this.playList);
 
     if (config) {
       this.bufferSize = config.bufferSize;
@@ -47,8 +43,6 @@ class VideoController {
     await this.videoDispenser.init(this.bufferSize);
     this.initState();
     this.initObservable();
-    this.initPlayPauseListener();
-    this.initUpDownButtonsListener();
   }
 
   getCurrentVideo(shift = 0) {
@@ -107,13 +101,11 @@ class VideoController {
     }
   }
 
-  observable;
-
   initObservable() {
     const observerCallback = ([entity]) => {
       const target = entity?.target;
 
-      if (target && !entity.isIntersecting && target === this.observable) {
+      if (target && !entity.isIntersecting && target === observable) {
         const forward = entity.rootBounds.top > entity.boundingClientRect.top;
 
         this.observer.unobserve(target);
@@ -121,13 +113,13 @@ class VideoController {
 
         if (forward) {
           this.playList.next();
-          this.observable = target.nextElementSibling;
+          observable = target.nextElementSibling;
         } else {
           this.playList.prev();
-          this.observable = target.previousElementSibling;
+          observable = target.previousElementSibling;
         }
 
-        this.observer.observe(this.observable);
+        this.observer.observe(observable);
       }
     };
     const options =  {
@@ -136,7 +128,7 @@ class VideoController {
       scrollMargin: '0px',
       threshold: 0.5,
     };
-    this.observable = this.videoViewport.children[0];
+    let observable = this.videoViewport.children[0];
     this.observer = new IntersectionObserver(observerCallback, options);
     this.observer.observe(this.videoViewport.children[0]);
   }
@@ -176,7 +168,7 @@ class VideoController {
     const from = this.playList.get(-1).video.index + 1;
     const to = from + this.bufferSize;
 
-    this.showLoader();
+    this.loaderController.showLoader();
     this.downStreamScheduler = this.videoDispenser.fetch(from, to)
       .then((videos) => {
         this.setupVideos(true, videos);
@@ -185,7 +177,7 @@ class VideoController {
           this.getCurrentVideo(1).preload();
         }
 
-        this.hideLoader();
+        this.loaderController.hideLoader();
         this.downStreamScheduler = null;
       });
   }
@@ -224,28 +216,6 @@ class VideoController {
       callbackUpdate?.();
       documentFragment.replaceChildren(...containers);
     }
-  }
-
-  initPlayPauseListener() {
-    this.videoViewport.addEventListener("click", () => this.getCurrentVideo()?.togglePlayPause());
-  }
-
-  initUpDownButtonsListener() {
-    document.querySelector(".controls").addEventListener("click", ({ target }) => {
-      if (target.classList.contains("control-up")) {
-        this.getCurrentVideo(-1)?.scrollIntoView();
-      } else if (target.classList.contains("control-down")) {
-        this.getCurrentVideo(1)?.scrollIntoView();
-      }
-    });
-  }
-
-  showLoader() {
-    this.loaderController.showLoader();
-  }
-
-  hideLoader() {
-    this.loaderController.hideLoader();
   }
 }
 

@@ -57,7 +57,7 @@ class PlayList {
     return this.items.at(index);
   }
 
-  getCurrentWithShift(shift) {
+  getCurrentWithShift(shift = 0) {
     const currentIndex = this.getCurrentIndex();
 
     return this.items[currentIndex + shift];

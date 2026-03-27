@@ -18,7 +18,6 @@ class VideoItem {
   }
 
   preload() {
-    console.error('preload', this.video.name);
     this.videoElement = document.createElement('video');
     this.videoElement.loop = true;
     this.videoElement.src = this.video.url;
@@ -28,7 +27,6 @@ class VideoItem {
 
   play() {
     this.current = true;
-    console.error('play', this.video.name);
 
     this.videoElement.play()
       .then(() => {
@@ -47,7 +45,6 @@ class VideoItem {
   stop() {
     this.pause();
     this.current = false;
-    console.error('stop', this.video.name);
     this.videoContainer.classList.remove('need-manual-play');
     this.videoElement.setAttribute('preload', 'none');
     this.videoElement.currentTime = 0;
@@ -57,7 +54,6 @@ class VideoItem {
     this.videoElement.remove();
     this.videoElement = null;
     this.current = false;
-    console.error('clear', this.video.name);
   }
 
   togglePlayPause() {
@@ -80,7 +76,6 @@ class VideoItem {
     this.videoElement = null;
     this.videoContainer = null;
     this.current = false;
-    console.error('destroy', this.video.name);
 
     return container;
   }

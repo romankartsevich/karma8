@@ -3,37 +3,28 @@
     src: url("fonts/JetBrainsSans-Regular.woff2");
 }
 
-@font-face {
-    font-family: "JetBrains Mono";
-    src: url("fonts/JetBrainsMono-Regular.woff2");
-}
-
-.global-list {
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-
-    .local-list {
-        height: 100%;
-        overflow: auto;
-        overflow-x: hidden;
-    }
-
-    .local-list * {
-        height: 100%;
-        width: 400px;
-    }
-}
-
 :root {
     font-family: "JetBrains Sans", Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
     font-weight: 300;
     text-align: center;
+    background-color: black;
 }
+
+/* Layout */
 
 html {
     width: 100vw;
     height: 100vh;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    min-width: 320px;
+    min-height: 100vh;
 }
 
 main {
@@ -42,28 +33,63 @@ main {
     height: 100vh;
 }
 
+/* Loader */
+
+.loader-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
 .loader {
-    top: -50px;
     position: absolute;
+    top: -50px;
     width: 30px;
     aspect-ratio: 1;
-    border-radius: 50%;
     border: 4px solid;
+    border-radius: 50%;
     border-color: #0000 #fff;
     animation: l1 1s infinite;
 }
 
-.loader-container {
-    display: flex;
-    justify-content: center;
-    width: 100%;
-    position: relative;
-}
-
 @keyframes l1 {
     to {
-        transform: rotate(.5turn)
+        transform: rotate(0.5turn);
     }
+}
+
+/* Controls */
+
+.controls {
+    position: absolute;
+    top: 50%;
+    right: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    transform: translateY(-50%);
+}
+
+.controls .control-up,
+.controls .control-down {
+    width: 50px;
+    height: 50px;
+    padding: 6px;
+    cursor: pointer;
+    border-radius: 50%;
+    background-color: rgb(165 165 165 / 37%);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 50px;
+}
+
+.controls .control-up {
+    background-image: url("/public/assets/icons/chevron-up.svg");
+}
+
+.controls .control-down {
+    background-image: url("/public/assets/icons/chevron-down.svg");
 }
 
 @media (orientation: portrait) {
@@ -72,108 +98,67 @@ main {
     }
 }
 
-.controls {
-    position: absolute;
-    right: 30px;
-    top: 50%;
-    transform: translateY(-50%);
-
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-
-    .control-up, .control-down {
-        width: 50px;
-        height: 50px;
-        padding: 6px;
-        background-color: rgb(165 165 165 / 37%);
-        border-radius: 50%;
-        cursor: pointer;
-    }
-
-    .control-up {
-        background-size: 50px;
-        background-image: url(/public/assets/icons/chevron-up.svg);
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-
-    .control-down {
-        background-size: 50px;
-        background-image: url(/public/assets/icons/chevron-down.svg);
-        background-repeat: no-repeat;
-        background-position: center;
-    }
-}
+/* Video */
 
 .video-container {
     position: relative;
     background: black;
-
-    .video-title {
-        position: absolute;
-        left: 5px;
-        bottom: 50px;
-        color: white;
-        font-size: 20px;
-        font-weight: 200;
-        background: #00000066;
-        padding: 8px 12px;
-        border-radius: 20px;
-    }
 }
 
-.video-container.need-manual-play {
-    &::after {
-        inset: 0;
-        content: "";
-        position: absolute;
-        background-size: 200px;
-        background-image: url(/public/assets/icons/play.svg);
-        background-repeat: no-repeat;
-        background-position: center;
-        cursor: pointer;
-    }
+.video-container .video-title {
+    position: absolute;
+    left: 5px;
+    bottom: 50px;
+    padding: 8px 12px;
+    font-size: 20px;
+    font-weight: 200;
+    color: white;
+    background: #00000066;
+    border-radius: 20px;
 }
+
+.video-container.need-manual-play::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    background-image: url("/public/assets/icons/play.svg");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 200px;
+}
+
+/* Viewport */
 
 .video-viewport {
     width: 100%;
     height: 100%;
-    border: 1px solid black;
     overflow: auto;
+
     scroll-snap-type: y mandatory;
     scroll-behavior: smooth;
 
-    .video-container {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-        height: 100%;
-        scroll-snap-align: start;
-        scroll-snap-stop: always;
+    box-sizing: border-box;
 
-        video {
-            height: 100%;
-            width: 100%;
-        }
-    }
-}
-
-.video-viewport {
     -ms-overflow-style: none;
     scrollbar-width: none;
-    box-sizing: border-box;
 }
+
 .video-viewport::-webkit-scrollbar {
     display: none;
 }
 
-body {
-    margin: 0;
+.video-viewport .video-container {
     display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    min-width: 320px;
-    min-height: 100vh;
-    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+}
+
+.video-viewport .video-container video {
+    width: 100%;
+    height: 100%;
 }
