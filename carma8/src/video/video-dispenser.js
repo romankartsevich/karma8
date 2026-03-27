@@ -20,9 +20,7 @@ class VideoDispenser {
   // loading emulation
   async getVideosFromTo(from, to) {
     return await new Promise(resolve => {
-
       setTimeout(() => resolve(mockFetch(from, to)), 4000);
-
     }).then(videos => {
       const begin = this.videos.slice(0, from);
       const end = this.videos.slice(to);

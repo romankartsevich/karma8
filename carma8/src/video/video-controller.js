@@ -1,36 +1,40 @@
 import VideoItem from './video-item.js';
-import LoaderController from '../loader/loader-controller.js';
-import Scheduler from '../utils/scheduler.js';
-import PlayList from '../play-list/play-list.js';
-import PlayListControls from '../play-list/play-list-controls.js';
 
 class VideoController {
-
   template;
   videoViewport;
   videoDispenser;
 
-  loaderController;
   scheduler;
   playList;
   playListControls;
+  loaderController;
 
-  upStreamScheduler;
-  downStreamScheduler;
+  prevVideoScheduled;
+  nextVideoScheduled;
   optimizationScheduled = false;
 
   bufferSize = 10;
   triggerSize = 5;
   garbageCollector = { triggerSize: 15, removeSize: 5 };
 
-  constructor(videoViewport, videoDispenser, template, config) {
+  constructor(
+    videoViewport,
+    videoDispenser,
+    loaderController,
+    playList,
+    playListControls,
+    scheduler,
+    template,
+    config
+  ) {
+    this.template = template;
+    this.scheduler = scheduler;
+    this.playList = playList;
+    this.playListControls = playListControls;
     this.videoViewport = videoViewport;
     this.videoDispenser = videoDispenser;
-    this.scheduler = new Scheduler(videoViewport);
-    this.loaderController = new LoaderController(videoViewport, 'loader');
-    this.template = template;
-    this.playList = new PlayList([]);
-    this.playListControls = new PlayListControls(videoViewport, this.playList);
+    this.loaderController = loaderController;
 
     if (config) {
       this.bufferSize = config.bufferSize;
@@ -134,14 +138,14 @@ class VideoController {
   }
 
   setupPrevVideos(optimizationCallback) {
-    if (this.upStreamScheduler) {
+    if (this.prevVideoScheduled) {
       return;
     }
 
     const to = Math.max(0,  this.playList.get(0).video.index - 1);
     const from = Math.max(0, to - this.bufferSize);
 
-    this.upStreamScheduler = true;
+    this.prevVideoScheduled = true;
     const callback = () => {
       this.videoDispenser
         .fetch(from, to)
@@ -152,7 +156,7 @@ class VideoController {
               this.getCurrentVideo(-1).preload();
             }
 
-            this.upStreamScheduler = null;
+            this.prevVideoScheduled = null;
             optimizationCallback?.();
         });
     }
@@ -161,25 +165,25 @@ class VideoController {
   }
 
   setupNextVideos() {
-    if (this.downStreamScheduler) {
+    if (this.nextVideoScheduled) {
       return;
     }
 
     const from = this.playList.get(-1).video.index + 1;
     const to = from + this.bufferSize;
 
+    this.nextVideoScheduled = true;
     this.loaderController.showLoader();
-    this.downStreamScheduler = this.videoDispenser.fetch(from, to)
-      .then((videos) => {
-        this.setupVideos(true, videos);
+    this.videoDispenser.fetch(from, to).then((videos) => {
+      this.setupVideos(true, videos);
 
-        if (this.getCurrentVideo().video.index === from - 1) {
-          this.getCurrentVideo(1).preload();
-        }
+      if (this.getCurrentVideo().video.index === from - 1) {
+        this.getCurrentVideo(1).preload();
+      }
 
-        this.loaderController.hideLoader();
-        this.downStreamScheduler = null;
-      });
+      this.loaderController.hideLoader();
+      this.nextVideoScheduled = false;
+    });
   }
 
   optimize() {
@@ -187,7 +191,7 @@ class VideoController {
       return;
     }
 
-    if (this.playList.getCurrentIndex()  > this.garbageCollector.triggerSize) {  // check when slide down
+    if (this.playList.prevVideosAmount() > this.garbageCollector.triggerSize) {  // check when slide down
       const videoItemsForDestroy = this.playList.getFromTo(0, this.garbageCollector.removeSize)
 
       if (videoItemsForDestroy.length > 0) {
@@ -196,7 +200,7 @@ class VideoController {
           () => this.playList.trimPrev(this.garbageCollector.removeSize)
         );
       }
-    } else if (this.playList.size() - this.playList.getCurrentIndex() > this.garbageCollector.triggerSize) { // check when slide up
+    } else if (this.playList.nextVideosAmount() > this.garbageCollector.triggerSize) { // check when slide up
       const videoItemsForDestroy = this.playList.getFromTo(this.playList.size() - this.garbageCollector.removeSize);
 
       if (videoItemsForDestroy.length > 0) {

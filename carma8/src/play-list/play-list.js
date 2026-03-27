@@ -60,7 +60,7 @@ class PlayList {
   getCurrentWithShift(shift = 0) {
     const currentIndex = this.getCurrentIndex();
 
-    return this.items[currentIndex + shift];
+    return this.get(currentIndex + shift);
   }
 
   getFromTo(from, to) {
@@ -69,6 +69,14 @@ class PlayList {
     }
 
     return this.items.slice(from);
+  }
+
+  nextVideosAmount() {
+    return this.size() - this.getCurrentIndex();
+  }
+
+  prevVideosAmount() {
+    return this.getCurrentIndex();
   }
 }
 
