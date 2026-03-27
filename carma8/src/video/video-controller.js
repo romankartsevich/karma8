@@ -54,7 +54,7 @@ class VideoController {
     this.playList.init();
   }
 
-  setupVideos(forward = true, videos) {
+  setupVideos(next = true, videos) {
     const fragment = document.createDocumentFragment();
     const newVideoItems = [];
 
@@ -65,12 +65,12 @@ class VideoController {
       fragment.appendChild(videoTemplate);
     });
 
-    if (forward) {
+    if (next) {
       this.videoViewport.appendChild(fragment);
-      this.playList.addToForward(newVideoItems);
+      this.playList.addToNext(newVideoItems);
     } else {
       this.videoViewport.insertBefore(fragment, this.videoViewport.firstChild);
-      this.playList.addToBackward(newVideoItems);
+      this.playList.addToPrev(newVideoItems);
     }
   }
 
@@ -82,12 +82,12 @@ class VideoController {
     return clone;
   }
 
-  updateEnvironment(forward) {
+  updateEnvironment(next) {
     const triggerBufferSize = 5;
 
-    if (forward) {
+    if (next) {
       if (this.playList.size() - this.playList.getCurrentIndex() < triggerBufferSize) {
-        this.setupForwardVideos();
+        this.setupNextVideos();
         const optimizationCallback = this.optimize();
 
         if (optimizationCallback) {
@@ -97,7 +97,7 @@ class VideoController {
     } else if (this.playList.get(0).video.index > 0 && this.playList.getCurrentIndex() < triggerBufferSize) {
       const optimizationCallback = this.optimize();
 
-      this.setupBackwardVideos(optimizationCallback);
+      this.setupPrevVideos(optimizationCallback);
     }
   }
 
@@ -106,12 +106,12 @@ class VideoController {
       const target = entity?.target;
 
       if (target && !entity.isIntersecting && target === observable) {
-        const forward = entity.rootBounds.top > entity.boundingClientRect.top;
+        const next = entity.rootBounds.top > entity.boundingClientRect.top;
 
         this.observer.unobserve(target);
-        this.updateEnvironment(forward);
+        this.updateEnvironment(next);
 
-        if (forward) {
+        if (next) {
           this.playList.next();
           observable = target.nextElementSibling;
         } else {
@@ -133,7 +133,7 @@ class VideoController {
     this.observer.observe(this.videoViewport.children[0]);
   }
 
-  setupBackwardVideos(optimizationCallback) {
+  setupPrevVideos(optimizationCallback) {
     if (this.upStreamScheduler) {
       return;
     }
@@ -160,7 +160,7 @@ class VideoController {
     this.scheduler.executeAfterScrollEnd(callback);
   }
 
-  setupForwardVideos() {
+  setupNextVideos() {
     if (this.downStreamScheduler) {
       return;
     }
@@ -193,7 +193,7 @@ class VideoController {
       if (videoItemsForDestroy.length > 0) {
         return this.getOptimizationCallback(
           videoItemsForDestroy,
-          () => this.playList.trimBackward(this.garbageCollector.removeSize)
+          () => this.playList.trimPrev(this.garbageCollector.removeSize)
         );
       }
     } else if (this.playList.size() - this.playList.getCurrentIndex() > this.garbageCollector.triggerSize) { // check when slide up
@@ -202,7 +202,7 @@ class VideoController {
       if (videoItemsForDestroy.length > 0) {
        return this.getOptimizationCallback(
           videoItemsForDestroy,
-          () => this.playList.trimForward(this.garbageCollector.removeSize),
+          () => this.playList.trimNext(this.garbageCollector.removeSize),
         );
       }
     }

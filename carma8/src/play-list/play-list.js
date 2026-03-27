@@ -11,19 +11,19 @@ class PlayList {
     this.items[1].preload();
   }
 
-  addToForward(items) {
+  addToNext(items) {
     this.items.push(...items);
   }
 
-  addToBackward(items) {
+  addToPrev(items) {
     this.items = [ ...items, ...this.items ];
   }
 
-  trimForward(amount) {
+  trimNext(amount) {
     this.items = this.items.slice(0, this.size() - amount);
   }
 
-  trimBackward(amount) {
+  trimPrev(amount) {
     this.items = this.items.slice(amount);
   }
 

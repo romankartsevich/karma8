@@ -20,6 +20,7 @@ class VideoDispenser {
     }
   }
 
+  // loading emulation
   async getVideosFromTo(from, to) {
     return await new Promise(resolve => {
 
