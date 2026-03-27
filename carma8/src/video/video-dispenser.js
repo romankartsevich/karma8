@@ -1,7 +1,4 @@
-import Video from './video-entity.js';
 import mockFetch from '../utils/mock.js';
-
-
 
 class VideoDispenser {
   videos = [];
