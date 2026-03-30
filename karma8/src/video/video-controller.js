@@ -86,22 +86,14 @@ class VideoController {
     return clone;
   }
 
-  updateEnvironment(next) {
-    const triggerBufferSize = 5;
-
+  async updateEnvironment(next) {
     if (next) {
-      if (this.playList.size() - this.playList.getCurrentIndex() < triggerBufferSize) {
-        this.setupNextVideos();
-        const optimizationCallback = this.optimize();
-
-        if (optimizationCallback) {
-          this.scheduler.executeAfterScrollEnd(optimizationCallback);
-        }
+      if (this.playList.nextVideosAmount() < this.triggerSize) {
+        await this.setupNextVideos();
+        this.scheduleOptimization();
       }
-    } else if (this.playList.get(0).video.index > 0 && this.playList.getCurrentIndex() < triggerBufferSize) {
-      const optimizationCallback = this.optimize();
-
-      this.setupPrevVideos(optimizationCallback);
+    } else if (this.playList.get(0).video.index > 0 && this.playList.prevVideosAmount() < this.triggerSize) {
+      this.setupPrevVideos();
     }
   }
 
@@ -133,93 +125,98 @@ class VideoController {
       threshold: 0.5,
     };
     let observable = this.videoViewport.children[0];
+
     this.observer = new IntersectionObserver(observerCallback, options);
     this.observer.observe(this.videoViewport.children[0]);
   }
 
-  setupPrevVideos(optimizationCallback) {
+  setupPrevVideos() {
     if (this.prevVideoScheduled) {
       return;
     }
 
+    this.prevVideoScheduled = true;
+
     const to = Math.max(0,  this.playList.get(0).video.index - 1);
     const from = Math.max(0, to - this.bufferSize);
 
-    this.prevVideoScheduled = true;
-    const callback = () => {
-      this.videoDispenser
-        .fetch(from, to)
-        .then(videos => {
-            this.setupVideos(false, videos);
+    this.scheduler.executeAfterScrollEnd(async () => {
+      const videos = await this.videoDispenser.fetch(from, to);
 
-            if (this.getCurrentVideo().video.index === (to + 1)) {
-              this.getCurrentVideo(-1).preload();
-            }
+      this.setupVideos(false, videos);
+      this.optimize();
 
-            this.prevVideoScheduled = null;
-            optimizationCallback?.();
-        });
-    }
+      if (this.getCurrentVideo().video.index === (to + 1)) {
+        this.getCurrentVideo(-1).preload();
+      }
 
-    this.scheduler.executeAfterScrollEnd(callback);
+      this.prevVideoScheduled = false;
+    });
   }
 
-  setupNextVideos() {
+  async setupNextVideos() {
     if (this.nextVideoScheduled) {
       return;
     }
 
-    const from = this.playList.get(-1).video.index + 1;
-    const to = from + this.bufferSize;
-
     this.nextVideoScheduled = true;
     this.loaderController.showLoader();
-    this.videoDispenser.fetch(from, to).then((videos) => {
-      this.setupVideos(true, videos);
 
-      if (this.getCurrentVideo().video.index === from - 1) {
-        this.getCurrentVideo(1).preload();
-      }
+    const from = this.playList.get(-1).video.index + 1;
+    const to = from + this.bufferSize;
+    const videos = await this.videoDispenser.fetch(from, to);
 
-      this.loaderController.hideLoader();
-      this.nextVideoScheduled = false;
-    });
+    this.setupVideos(true, videos);
+
+    if (this.getCurrentVideo().video.index === from - 1) {
+      this.getCurrentVideo(1).preload();
+    }
+
+    this.loaderController.hideLoader();
+    this.nextVideoScheduled = false;
   }
 
-  optimize() {
+  scheduleOptimization() {
     if (this.optimizationScheduled) {
       return;
     }
 
-    if (this.playList.prevVideosAmount() > this.garbageCollector.triggerSize) {  // check when slide down
-      const videoItemsForDestroy = this.playList.getFromTo(0, this.garbageCollector.removeSize)
+    this.optimizationScheduled = true;
+    this.scheduler.executeAfterScrollEnd(() => {
+      this.optimize();
+      this.optimizationScheduled = false;
+    });
+  }
 
-      if (videoItemsForDestroy.length > 0) {
-        return this.getOptimizationCallback(
-          videoItemsForDestroy,
-          () => this.playList.trimPrev(this.garbageCollector.removeSize)
-        );
-      }
-    } else if (this.playList.nextVideosAmount() > this.garbageCollector.triggerSize) { // check when slide up
-      const videoItemsForDestroy = this.playList.getFromTo(this.playList.size() - this.garbageCollector.removeSize);
+  optimize() {
+    const direction = this.getOptimizationDirection();
 
-      if (videoItemsForDestroy.length > 0) {
-       return this.getOptimizationCallback(
-          videoItemsForDestroy,
-          () => this.playList.trimNext(this.garbageCollector.removeSize),
-        );
+    if (direction !== null) {
+      const itemsToDelete = direction === 'prev'
+        ? this.playList.getFromTo(0, this.garbageCollector.removeSize)
+        : this.playList.getFromTo(this.playList.size() - this.garbageCollector.removeSize);
+      const trimFn = direction === 'prev'
+        ? () => this.playList.trimPrev(this.garbageCollector.removeSize)
+        : () => this.playList.trimNext(this.garbageCollector.removeSize);
+
+      if (itemsToDelete.length > 0) {
+        const documentFragment = document.createDocumentFragment();
+        const containers = itemsToDelete.map(videoItem => videoItem.destroy());
+
+        trimFn?.();
+        documentFragment.replaceChildren(...containers);
       }
     }
   }
 
-  getOptimizationCallback(videoItemsForDestroy, callbackUpdate) {
-    return () => {
-      let documentFragment = document.createDocumentFragment();
-      const containers = videoItemsForDestroy.map(videoItem => videoItem.destroy());
-
-      callbackUpdate?.();
-      documentFragment.replaceChildren(...containers);
+  getOptimizationDirection() {
+    if (this.playList.prevVideosAmount() > this.garbageCollector.triggerSize) {
+      return 'prev';
+    } else if (this.playList.nextVideosAmount() > this.garbageCollector.triggerSize) {
+      return 'next';
     }
+
+    return null;
   }
 }
 

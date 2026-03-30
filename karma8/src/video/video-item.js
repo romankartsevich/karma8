@@ -6,15 +6,20 @@ class VideoItem {
 
   current = false;
 
+  classes = {
+    manualPlay: 'need-manual-play',
+    videoTitle: 'video-title',
+    playing: 'playing',
+  };
+
   constructor(video, videoContainer) {
     this.video = video;
     this.videoContainer = videoContainer;
-
     this.init();
   }
 
   init() {
-    this.videoContainer.querySelector('.video-title').textContent = `Example name #${this.video.name}`;
+    this.videoContainer.querySelector(`.${this.classes.videoTitle}`).textContent = `Example name #${this.video.name}`;
   }
 
   preload() {
@@ -30,22 +35,22 @@ class VideoItem {
 
     this.videoElement.play()
       .then(() => {
-        this.videoContainer.classList.add('play');
-        this.videoContainer.classList.remove('need-manual-play');
+        this.videoContainer.classList.add(this.classes.playing);
+        this.videoContainer.classList.remove(this.classes.manualPlay);
       })
-      .catch(() => this.videoContainer.classList.add('need-manual-play'));
+      .catch(() => this.videoContainer.classList.add(this.classes.manualPlay));
   }
 
   pause() {
     this.videoElement.pause();
-    this.videoContainer.classList.remove('play');
-    this.videoContainer.classList.add('need-manual-play');
+    this.videoContainer.classList.remove(this.classes.playing);
+    this.videoContainer.classList.add(this.classes.manualPlay);
   }
 
   stop() {
     this.pause();
     this.current = false;
-    this.videoContainer.classList.remove('need-manual-play');
+    this.videoContainer.classList.remove(this.classes.manualPlay);
     this.videoElement.setAttribute('preload', 'none');
     this.videoElement.currentTime = 0;
   }
